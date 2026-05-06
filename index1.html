@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bad Food Slasher: Pro Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-drag: none; touch-action: none; }
+        body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Fredoka', sans-serif; background: #000; }
+
+        #game-container { position: relative; width: 100vw; height: 100vh; transition: transform 0.1s; }
+
+        /* --- SCREENS --- */
+        #start-screen {
+            position: absolute; width: 100%; height: 100%;
+            background-image: url('background1.png'); background-size: cover; background-position: center;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
+        }
+
+        #game-screen {
+            position: absolute; width: 100%; height: 100%;
+            background-image: url('background3.png'); background-size: cover; background-position: center;
+            display: none;
+        }
+
+        .overlay {
+            position: absolute; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 200; color: #fff; text-align: center;
+        }
+
+        /* --- UI & TEXT --- */
+        .title {
+            font-size: 120px; color: #fff; text-shadow: 12px 12px 0 #d32f2f;
+            text-align: center; line-height: 0.9; margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-40px) rotate(2deg); } }
+
+        #start-button { position: absolute; bottom: 40px; right: 40px; width: 280px; cursor: pointer; }
+
+        .stats-box {
+            background: rgba(255, 255, 255, 0.9); padding: 10px 25px;
+            border-radius: 30px; border: 6px solid #fff; font-size: 35px; color: #333;
+        }
+        .heart { width: 70px; height: 70px; transition: 0.3s; }
+
+        /* Audio Toggle */
+        #mute-btn {
+            position: absolute; top: 150px; right: 30px; width: 60px; height: 60px;
+            background: rgba(255,255,255,0.8); border-radius: 50%; border: 4px solid #fff;
+            display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 60; font-size: 30px;
+        }
+
+        /* --- GAME OBJECTS --- */
+        .game-object { position: absolute; width: 200px; height: 200px; background-size: contain; background-repeat: no-repeat; background-position: center; z-index: 10; }
+        
+        .half { position: absolute; width: 200px; height: 200px; background-size: contain; background-repeat: no-repeat; background-position: center; pointer-events: none; z-index: 9; }
+        .left-half { clip-path: inset(0 50% 0 0); }
+        .right-half { clip-path: inset(0 0 0 50%); }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            20% { transform: translate(-3px, 0px) rotate(-1deg); }
+            40% { transform: translate(3px, 2px) rotate(1deg); }
+            60% { transform: translate(-3px, 1px) rotate(-1deg); }
+            80% { transform: translate(3px, 1px) rotate(1deg); }
+            100% { transform: translate(1px, -2px) rotate(0deg); }
+        }
+
+        .shake-screen { animation: shake 0.3s; background-color: rgba(255, 0, 0, 0.2) !important; }
+
+        canvas#slash-canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 60; }
+        
+        .game-btn { padding: 20px 50px; font-size: 35px; background: #4caf50; color: white; border: none; border-radius: 60px; cursor: pointer; box-shadow: 0 10px 0 #2e7d32; font-family: 'Fredoka'; }
+    </style>
+</head>
+<body>
+
+<audio id="bg-music" loop>
+    <source src="background-music.mp3" type="audio/mpeg">
+</audio>
+
+<div id="game-container">
+    <div id="start-screen">
+        <h1 class="title">Bad Food<br>Slasher</h1>
+        <img id="start-button" src="start2.png" onclick="startGame()">
+    </div>
+
+    <div id="game-screen">
+        <div style="position:absolute; top:30px; left:30px; right:30px; display:flex; justify-content:space-between; z-index:50; pointer-events:none;">
+            <div>
+                <div class="stats-box" id="score-display">Slashes: 0</div>
+                <div class="stats-box" id="level-display" style="margin-top:10px">Level: 1</div>
+            </div>
+            <div id="hearts-container">
+                <img src="heart.png" class="heart" id="h1">
+                <img src="heart.png" class="heart" id="h2">
+                <img src="heart.png" class="heart" id="h3">
+            </div>
+        </div>
+
+        <div id="mute-btn" onclick="toggleMusic()">🔊</div>
+        <canvas id="slash-canvas"></canvas>
+    </div>
+
+    <div id="transition-screen" class="overlay">
+        <img src="healthyteeth.png" style="width:300px; border-radius:30px; border:8px solid white;">
+        <div style="font-size:60px; margin:20px 0;">Congratulations!</div>
+        <div id="pass-msg" style="font-size:35px; color:#4eff4e; margin-bottom:30px;">You passed Level 1!</div>
+        <button class="game-btn" onclick="nextLevel()">NEXT LEVEL ➔</button>
+    </div>
+
+    <div id="win-screen" class="overlay">
+        <img src="healthyteeth.png" style="width:300px;">
+        <div style="font-size:60px; color:#4eff4e;">YOU WON!</div>
+        <p style="font-size:30px;">You kept your teeth healthy!</p>
+        <button class="game-btn" onclick="location.reload()">🔄 PLAY AGAIN</button>
+    </div>
+
+    <div id="lose-screen" class="overlay">
+        <img src="badteeth.png" style="width:300px;">
+        <div style="font-size:60px; color:#ff5252;">GAME OVER!</div>
+        <p style="font-size:30px;">Ouch, we had too much cavity!</p>
+        <button class="game-btn" onclick="location.reload()">🔄 TRY AGAIN</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('slash-canvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('game-container');
+    const music = document.getElementById('bg-music');
+    let score = 0, lives = 3, level = 1, gameActive = false, objects = [], halves = [];
+    let isMuted = false;
+    
+    const badFoods = ['cake.png', 'candy.png', 'candy2.png', 'chocolate.png', 'chocolate2.png', 'cupcake.png', 'donut.png', 'icecream.png'];
+    const goodFoods = ['banana.png', 'grapes.png', 'milk.png', 'orange.png', 'watermelon.png', 'dragonfruit.png'];
+    let points = [], isSlashing = false;
+
+    function initCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', initCanvas);
+    initCanvas();
+
+    // --- AUDIO LOGIC ---
+    function toggleMusic() {
+        isMuted = !isMuted;
+        music.muted = isMuted;
+        document.getElementById('mute-btn').innerText = isMuted ? "🔇" : "🔊";
+    }
+
+    function startGame() {
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+        
+        // Browsers require a user gesture to play audio
+        music.play().catch(e => console.log("Audio waiting for interaction"));
+        
+        resumeGame();
+    }
+
+    function resumeGame() { gameActive = true; gameLoop(); spawnLogic(); }
+
+    function spawnLogic() {
+        if (!gameActive) return;
+        let rate = Math.max(400, 1800 - (level * 450));
+        setTimeout(() => { if (gameActive) { spawnObject(); spawnLogic(); } }, rate);
+    }
+
+    function spawnObject() {
+        const isBad = Math.random() > 0.4;
+        const img = isBad ? badFoods[Math.floor(Math.random() * badFoods.length)] : goodFoods[Math.floor(Math.random() * goodFoods.length)];
+        const objSize = 200; 
+        const obj = {
+            x: Math.random() * (window.innerWidth - objSize),
+            y: window.innerHeight,
+            vx: (Math.random() - 0.5) * (12 + level * 4),
+            vy: - (Math.random() * 5 + 18 + (level * 3)),
+            gravity: 0.35, isBad: isBad, img: img, slashed: false,
+            element: document.createElement('div')
+        };
+        obj.element.className = 'game-object';
+        obj.element.style.backgroundImage = `url('${img}')`;
+        document.getElementById('game-screen').appendChild(obj.element);
+        objects.push(obj);
+    }
+
+    function gameLoop() {
+        if (!gameActive) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawSlash();
+
+        for (let i = objects.length - 1; i >= 0; i--) {
+            const obj = objects[i];
+            obj.vy += obj.gravity;
+            obj.x += obj.vx;
+            obj.y += obj.vy;
+            obj.element.style.left = obj.x + 'px';
+            obj.element.style.top = obj.y + 'px';
+            obj.element.style.transform = `rotate(${obj.y * 0.1}deg)`;
+
+            if (!obj.slashed && isSlashing && points.length > 0) {
+                const head = points[points.length - 1];
+                const dx = head.x - (obj.x + 100);
+                const dy = head.y - (obj.y + 100);
+                if (Math.sqrt(dx*dx + dy*dy) < 110) {
+                    handleSlash(obj);
+                }
+            }
+            if (obj.y > window.innerHeight + 400) {
+                obj.element.remove();
+                objects.splice(i, 1);
+            }
+        }
+
+        for (let j = halves.length - 1; j >= 0; j--) {
+            const h = halves[j];
+            h.vy += 0.5;
+            h.x += h.vx;
+            h.y += h.vy;
+            h.rotation += h.vRotation;
+            h.el.style.left = h.x + 'px';
+            h.el.style.top = h.y + 'px';
+            h.el.style.transform = `rotate(${h.rotation}deg)`;
+            if (h.y > window.innerHeight + 300) {
+                h.el.remove();
+                halves.splice(j, 1);
+            }
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    function handleSlash(obj) {
+        obj.slashed = true;
+        if (obj.isBad) {
+            score++;
+            createHalves(obj);
+            obj.element.remove();
+            checkLevelProgress();
+        } else {
+            lives--;
+            container.classList.add('shake-screen');
+            obj.element.style.filter = 'sepia(1) saturate(1000%) hue-rotate(-50deg)';
+            setTimeout(() => container.classList.remove('shake-screen'), 300);
+            if (lives <= 0) endGame('lose');
+        }
+        updateUI();
+    }
+
+    function createHalves(obj) {
+        const createHalf = (sideVx) => {
+            const el = document.createElement('div');
+            el.className = `half ${sideVx < 0 ? 'left-half' : 'right-half'}`;
+            el.style.backgroundImage = `url('${obj.img}')`;
+            document.getElementById('game-screen').appendChild(el);
+            halves.push({
+                el: el, x: obj.x, y: obj.y, 
+                vx: obj.vx + sideVx, vy: obj.vy, 
+                rotation: 0, vRotation: sideVx * 2
+            });
+        };
+        createHalf(-5); createHalf(5);
+    }
+
+    function checkLevelProgress() {
+        if (level === 1 && score === 5) pauseForTransition(2);
+        else if (level === 2 && score === 13) pauseForTransition(3);
+        else if (level === 3 && score === 23) endGame('win');
+    }
+
+    function pauseForTransition(nextLvl) {
+        gameActive = false;
+        objects.forEach(o => o.element.remove());
+        objects = [];
+        document.getElementById('pass-msg').innerText = `You passed Level ${nextLvl - 1}!`;
+        document.getElementById('transition-screen').style.display = 'flex';
+        level = nextLvl;
+    }
+
+    function nextLevel() {
+        document.getElementById('transition-screen').style.display = 'none';
+        updateUI();
+        resumeGame();
+    }
+
+    function updateUI() {
+        document.getElementById('score-display').innerText = `Slashes: ${score}`;
+        document.getElementById('level-display').innerText = `Level: ${level}`;
+        for(let i=1; i<=3; i++) {
+            const heart = document.getElementById('h'+i);
+            if(heart) heart.style.opacity = i <= lives ? '1' : '0.1';
+        }
+    }
+
+    function endGame(status) {
+        gameActive = false;
+        if (status === 'win') document.getElementById('win-screen').style.display = 'flex';
+        else document.getElementById('lose-screen').style.display = 'flex';
+    }
+
+    // --- UPDATED INPUT LOGIC FOR TOUCH & MOUSE ---
+    function handleInput(e) {
+        // Prevent scrolling on touch
+        if (e.type.startsWith('touch')) e.preventDefault();
+        
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        
+        if (clientX !== undefined) {
+            points.push({ x: clientX, y: clientY });
+            if (points.length > 10) points.shift();
+        }
+    }
+
+    function drawSlash() {
+        if (points.length < 2) return;
+        ctx.beginPath();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 12; ctx.lineCap = 'round';
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+        ctx.stroke();
+    }
+
+    // Mouse Listeners
+    window.addEventListener('mousedown', (e) => { isSlashing = true; points = []; handleInput(e); });
+    window.addEventListener('mousemove', (e) => { if (isSlashing) handleInput(e); });
+    window.addEventListener('mouseup', () => { isSlashing = false; points = []; });
+
+    // Touch Listeners (for tablets/touchscreens)
+    window.addEventListener('touchstart', (e) => { 
+        isSlashing = true; 
+        points = []; 
+        handleInput(e); 
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => { 
+        if (isSlashing) handleInput(e); 
+    }, { passive: false });
+
+    window.addEventListener('touchend', () => { 
+        isSlashing = false; 
+        points = []; 
+    });
+
+</script>
+
+</body>
+</html>
